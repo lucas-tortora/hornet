@@ -564,10 +564,11 @@ func (pm *ParticipationManager) addressBytesForOutputID(outputID *iotago.UTXOInp
 func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index milestone.Index, events map[EventID]*Event) error {
 
 	tStart := time.Now()
-	mutations := pm.participationStore.Batched()
 
 	// Iterate over all known events and increase the one that are currently counting
 	for eventID, event := range events {
+		tEventStart := time.Now()
+		mutations := pm.participationStore.Batched()
 		shouldCountParticipation := event.ShouldCountParticipation(index)
 
 		processAnswerValueBalances := func(questionIndex uint8, answerValue uint8) error {
@@ -707,20 +708,28 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 				return err
 			}
 		}
+
+		tPrepared := time.Now()
+		err := mutations.Commit()
+		tCommited := time.Now()
+
+		fmt.Printf("applyNewConfirmedMilestoneIndexForEvents[%s] for milestone %d: prepare: %v, commit %v, total: %v\n",
+			hex.EncodeToString(eventID[:]),
+			index,
+			tPrepared.Sub(tEventStart).Truncate(time.Millisecond),
+			tCommited.Sub(tPrepared).Truncate(time.Millisecond),
+			tCommited.Sub(tEventStart).Truncate(time.Millisecond),
+		)
+		if err != nil {
+			return err
+		}
 	}
 
-	tPrepared := time.Now()
-	err := mutations.Commit()
-	tCommited := time.Now()
-
-	fmt.Printf("applyNewConfirmedMilestoneIndexForEvents for milestone %d: prepare: %v, commit %v, total: %v\n",
+	fmt.Printf("applyNewConfirmedMilestoneIndexForEvents for milestone %d: total: %v\n",
 		index,
-		tPrepared.Sub(tStart).Truncate(time.Millisecond),
-		tCommited.Sub(tPrepared).Truncate(time.Millisecond),
-		tCommited.Sub(tStart).Truncate(time.Millisecond),
+		time.Now().Sub(tStart).Truncate(time.Millisecond),
 	)
-
-	return err
+	return nil
 }
 
 func filterValidParticipationsForEvents(index milestone.Index, votes []*Participation, events map[EventID]*Event) []*Participation {

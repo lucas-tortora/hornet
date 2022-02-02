@@ -640,7 +640,13 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 				addressRewardsIncreases := make(map[string]uint64)
 				var innerErr error
 				var outputCount int
+
+				var addressLookup time.Duration
+				var multiplication time.Duration
+				var tracking time.Duration
+
 				pm.ForEachActiveParticipation(eventID, func(trackedParticipation *TrackedParticipation) bool {
+					ts := time.Now()
 					outputCount++
 					addrBytes, err := pm.addressBytesForOutputID(trackedParticipation.OutputID)
 					if err != nil {
@@ -649,16 +655,23 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 						return false
 					}
 
+					tLookup := time.Now()
+					addressLookup += tLookup.Sub(ts).Truncate(time.Millisecond)
 					// This should not overflow, since we did worst-case overflow checks before adding the event
 					increaseAmount := trackedParticipation.Amount * uint64(staking.Numerator) / uint64(staking.Denominator)
+
+					tMult := time.Now()
+					multiplication += tMult.Sub(tLookup).Truncate(time.Millisecond)
 
 					addr := string(addrBytes)
 					balance, found := addressRewardsIncreases[addr]
 					if !found {
 						addressRewardsIncreases[addr] = increaseAmount
+						tracking += time.Now().Sub(tMult).Truncate(time.Millisecond)
 						return true
 					}
 					addressRewardsIncreases[addr] = balance + increaseAmount
+					tracking += time.Now().Sub(tMult).Truncate(time.Millisecond)
 					return true
 				})
 				if innerErr != nil {
@@ -676,12 +689,15 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 				}
 				tEndApplyAddressIncreases := time.Now()
 
-				fmt.Printf("applyNewConfirmedMilestoneIndexForEvents[%s] for milestone %d: outputs: %d, addresses: %d, collect: %v, apply %v, total: %v\n",
+				fmt.Printf("applyNewConfirmedMilestoneIndexForEvents[%s] for milestone %d: outputs: %d, addresses: %d, collect: %v [%v %v %v], apply %v, total: %v\n",
 					hex.EncodeToString(eventID[:]),
 					index,
 					outputCount,
 					len(addressRewardsIncreases),
 					tEndCollectAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
+					addressLookup,
+					multiplication,
+					tracking,
 					tEndApplyAddressIncreases.Sub(tEndCollectAddressIncreases).Truncate(time.Millisecond),
 					tEndApplyAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
 				)

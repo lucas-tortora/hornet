@@ -111,13 +111,13 @@ func NewManager(
 
 func (pm *ParticipationManager) init() error {
 
-	corrupted, err := pm.participationStoreHealth.IsCorrupted()
-	if err != nil {
-		return err
-	}
-	if corrupted {
-		return ErrParticipationCorruptedStorage
-	}
+	//corrupted, err := pm.participationStoreHealth.IsCorrupted()
+	//if err != nil {
+	//	return err
+	//}
+	//if corrupted {
+	//	return ErrParticipationCorruptedStorage
+	//}
 
 	correctDatabasesVersion, err := pm.participationStoreHealth.CheckCorrectDatabaseVersion()
 	if err != nil {

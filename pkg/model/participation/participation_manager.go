@@ -656,22 +656,22 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 					}
 
 					tLookup := time.Now()
-					addressLookup += tLookup.Sub(ts).Truncate(time.Millisecond)
+					addressLookup += tLookup.Sub(ts)
 					// This should not overflow, since we did worst-case overflow checks before adding the event
 					increaseAmount := trackedParticipation.Amount * uint64(staking.Numerator) / uint64(staking.Denominator)
 
 					tMult := time.Now()
-					multiplication += tMult.Sub(tLookup).Truncate(time.Millisecond)
+					multiplication += tMult.Sub(tLookup)
 
 					addr := string(addrBytes)
 					balance, found := addressRewardsIncreases[addr]
 					if !found {
 						addressRewardsIncreases[addr] = increaseAmount
-						tracking += time.Now().Sub(tMult).Truncate(time.Millisecond)
+						tracking += time.Now().Sub(tMult)
 						return true
 					}
 					addressRewardsIncreases[addr] = balance + increaseAmount
-					tracking += time.Now().Sub(tMult).Truncate(time.Millisecond)
+					tracking += time.Now().Sub(tMult)
 					return true
 				})
 				if innerErr != nil {
@@ -695,9 +695,9 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 					outputCount,
 					len(addressRewardsIncreases),
 					tEndCollectAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
-					addressLookup,
-					multiplication,
-					tracking,
+					addressLookup.Truncate(time.Millisecond),
+					multiplication.Truncate(time.Millisecond),
+					tracking.Truncate(time.Millisecond),
 					tEndApplyAddressIncreases.Sub(tEndCollectAddressIncreases).Truncate(time.Millisecond),
 					tEndApplyAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
 				)

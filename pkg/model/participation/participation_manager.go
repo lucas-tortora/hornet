@@ -2,6 +2,7 @@ package participation
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -634,6 +635,7 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 			}
 
 			if shouldCountParticipation {
+				tStartCollectAddressIncreases := time.Now()
 				addressRewardsIncreases := make(map[string]uint64)
 				var innerErr error
 				pm.ForEachActiveParticipation(eventID, func(trackedParticipation *TrackedParticipation) bool {
@@ -660,6 +662,7 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 				if innerErr != nil {
 					return innerErr
 				}
+				tEndCollectAddressIncreases := time.Now()
 
 				for addr, diff := range addressRewardsIncreases {
 					addrBytes := []byte(addr)
@@ -669,6 +672,15 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 						return err
 					}
 				}
+				tEndApplyAddressIncreases := time.Now()
+
+				fmt.Printf("applyNewConfirmedMilestoneIndexForEvents[%s] for milestone %d:\tcollect: %v, apply %v, total: %v\n",
+					hex.EncodeToString(eventID[:]),
+					index,
+					tEndCollectAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
+					tEndApplyAddressIncreases.Sub(tEndCollectAddressIncreases).Truncate(time.Millisecond),
+					tEndApplyAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
+				)
 			}
 
 			if err := pm.setTotalStakingParticipationForEvent(eventID, index, total, mutations); err != nil {
@@ -698,7 +710,7 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 	err := mutations.Commit()
 	tCommited := time.Now()
 
-	fmt.Printf("applyNewConfirmedMilestoneIndexForEvents for milestone %d:\tprepare: %v, commit %v, total: %v",
+	fmt.Printf("applyNewConfirmedMilestoneIndexForEvents for milestone %d:\tprepare: %v, commit %v, total: %v\n",
 		index,
 		tPrepared.Sub(tStart).Truncate(time.Millisecond),
 		tCommited.Sub(tPrepared).Truncate(time.Millisecond),

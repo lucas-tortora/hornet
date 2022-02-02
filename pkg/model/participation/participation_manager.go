@@ -3,6 +3,7 @@ package participation
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -561,6 +562,7 @@ func (pm *ParticipationManager) addressBytesForOutputID(outputID *iotago.UTXOInp
 
 func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index milestone.Index, events map[EventID]*Event) error {
 
+	tStart := time.Now()
 	mutations := pm.participationStore.Batched()
 
 	// Iterate over all known events and increase the one that are currently counting
@@ -692,7 +694,18 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 		}
 	}
 
-	return mutations.Commit()
+	tPrepared := time.Now()
+	err := mutations.Commit()
+	tCommited := time.Now()
+
+	fmt.Printf("applyNewConfirmedMilestoneIndexForEvents for milestone %d:\tprepare: %v, commit %v, total: %v",
+		index,
+		tPrepared.Sub(tStart).Truncate(time.Millisecond),
+		tCommited.Sub(tPrepared).Truncate(time.Millisecond),
+		tCommited.Sub(tStart).Truncate(time.Millisecond),
+	)
+
+	return err
 }
 
 func filterValidParticipationsForEvents(index milestone.Index, votes []*Participation, events map[EventID]*Event) []*Participation {

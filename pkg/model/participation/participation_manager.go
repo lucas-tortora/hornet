@@ -638,8 +638,9 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 				tStartCollectAddressIncreases := time.Now()
 				addressRewardsIncreases := make(map[string]uint64)
 				var innerErr error
+				var outputCount int
 				pm.ForEachActiveParticipation(eventID, func(trackedParticipation *TrackedParticipation) bool {
-
+					outputCount++
 					addrBytes, err := pm.addressBytesForOutputID(trackedParticipation.OutputID)
 					if err != nil {
 						// We should have the output in the ledger, if not, something happened
@@ -674,9 +675,11 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 				}
 				tEndApplyAddressIncreases := time.Now()
 
-				fmt.Printf("applyNewConfirmedMilestoneIndexForEvents[%s] for milestone %d:\tcollect: %v, apply %v, total: %v\n",
+				fmt.Printf("applyNewConfirmedMilestoneIndexForEvents[%s] for milestone %d: outputs: %d, addresses: %d, collect: %v, apply %v, total: %v\n",
 					hex.EncodeToString(eventID[:]),
 					index,
+					outputCount,
+					len(addressRewardsIncreases),
 					tEndCollectAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
 					tEndApplyAddressIncreases.Sub(tEndCollectAddressIncreases).Truncate(time.Millisecond),
 					tEndApplyAddressIncreases.Sub(tStartCollectAddressIncreases).Truncate(time.Millisecond),
@@ -710,7 +713,7 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 	err := mutations.Commit()
 	tCommited := time.Now()
 
-	fmt.Printf("applyNewConfirmedMilestoneIndexForEvents for milestone %d:\tprepare: %v, commit %v, total: %v\n",
+	fmt.Printf("applyNewConfirmedMilestoneIndexForEvents for milestone %d: prepare: %v, commit %v, total: %v\n",
 		index,
 		tPrepared.Sub(tStart).Truncate(time.Millisecond),
 		tCommited.Sub(tPrepared).Truncate(time.Millisecond),

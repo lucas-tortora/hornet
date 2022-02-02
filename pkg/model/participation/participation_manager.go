@@ -11,6 +11,7 @@ import (
 	"github.com/gohornet/hornet/pkg/model/syncmanager"
 	"github.com/gohornet/hornet/pkg/model/utxo"
 	"github.com/iotaledger/hive.go/kvstore"
+	"github.com/iotaledger/hive.go/lru_cache"
 	"github.com/iotaledger/hive.go/serializer"
 	"github.com/iotaledger/hive.go/syncutils"
 	iotago "github.com/iotaledger/iota.go/v2"
@@ -22,6 +23,10 @@ var (
 	ErrParticipationEventBallotCanOverflow         = errors.New("the given participation duration in combination with the maximum voting weight can overflow uint64")
 	ErrParticipationEventStakingCanOverflow        = errors.New("the given participation staking nominator and denominator in combination with the duration can overflow uint64")
 	ErrParticipationEventAlreadyExists             = errors.New("the given participation event already exists")
+)
+
+const (
+	addressCacheSize = 250_000
 )
 
 // ParticipationManager is used to track the outcome of participation in the tangle.
@@ -40,6 +45,8 @@ type ParticipationManager struct {
 
 	participationStore       kvstore.KVStore
 	participationStoreHealth *storage.StoreHealthTracker
+
+	addressCache *lru_cache.LRUCache
 
 	events map[EventID]*Event
 }
@@ -89,6 +96,7 @@ func NewManager(
 		participationStore:       participationStore,
 		participationStoreHealth: storage.NewStoreHealthTracker(participationStore),
 		opts:                     options,
+		addressCache:             lru_cache.NewLRUCache(addressCacheSize),
 	}
 
 	err := manager.init()
@@ -532,6 +540,25 @@ func (pm *ParticipationManager) ApplyNewConfirmedMilestoneIndex(index milestone.
 	return pm.applyNewConfirmedMilestoneIndexForEvents(index, acceptingEvents)
 }
 
+func (pm *ParticipationManager) addressBytesForOutputID(outputID *iotago.UTXOInputID) ([]byte, error) {
+
+	key := string(outputID[:])
+	var innerErr error
+	value := pm.addressCache.ComputeIfAbsent(key, func() interface{} {
+		output, err := pm.storage.UTXOManager().ReadOutputByOutputIDWithoutLocking(outputID)
+		if err != nil {
+			innerErr = err
+			return nil
+		}
+		return output.AddressBytes()
+	})
+
+	if innerErr != nil {
+		return nil, innerErr
+	}
+	return value.([]byte), nil
+}
+
 func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index milestone.Index, events map[EventID]*Event) error {
 
 	mutations := pm.participationStore.Batched()
@@ -605,11 +632,11 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 			}
 
 			if shouldCountParticipation {
-				utxoManager := pm.storage.UTXOManager()
 				addressRewardsIncreases := make(map[string]uint64)
 				var innerErr error
 				pm.ForEachActiveParticipation(eventID, func(trackedParticipation *TrackedParticipation) bool {
-					output, err := utxoManager.ReadOutputByOutputIDWithoutLocking(trackedParticipation.OutputID)
+
+					addrBytes, err := pm.addressBytesForOutputID(trackedParticipation.OutputID)
 					if err != nil {
 						// We should have the output in the ledger, if not, something happened
 						innerErr = err
@@ -619,7 +646,7 @@ func (pm *ParticipationManager) applyNewConfirmedMilestoneIndexForEvents(index m
 					// This should not overflow, since we did worst-case overflow checks before adding the event
 					increaseAmount := trackedParticipation.Amount * uint64(staking.Numerator) / uint64(staking.Denominator)
 
-					addr := string(output.AddressBytes())
+					addr := string(addrBytes)
 					balance, found := addressRewardsIncreases[addr]
 					if !found {
 						addressRewardsIncreases[addr] = increaseAmount

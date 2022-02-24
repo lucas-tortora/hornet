@@ -283,8 +283,14 @@ func copyMilestoneCone(ctx context.Context,
 		}
 		defer cachedMsg.Release(true)
 
+		iotaMsg := cachedMsg.Message().Message()
+		newMsg, err := storage.NewMessage(iotaMsg, serializer.DeSeriModeNoValidation)
+		if err != nil {
+			panic(err)
+		}
+
 		// store the message in the target storage
-		storeMessage(storeTarget, milestoneManager, cachedMsg.Message()).Release(true)
+		storeMessage(storeTarget, milestoneManager, newMsg).Release(true)
 		println(fmt.Sprintf("STORED by HORNET: %s", cachedMetadata.Metadata().MessageID().ToHex()))
 		return true, nil
 	}

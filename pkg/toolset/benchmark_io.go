@@ -23,6 +23,14 @@ func newBenchmarkObject(store kvstore.KVStore, writeDoneWaitGroup *sync.WaitGrou
 	}
 }
 
+func (bo *benchmarkObject) KeyWithPrefix() []byte {
+	return bo.key
+}
+
+func (bo *benchmarkObject) Logging() bool {
+	return true
+}
+
 func (bo *benchmarkObject) BatchWrite(batchedMuts kvstore.BatchedMutations) {
 	if err := batchedMuts.Set(bo.key, bo.value); err != nil {
 		panic(fmt.Errorf("write operation failed: %w", err))

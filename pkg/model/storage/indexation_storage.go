@@ -23,8 +23,9 @@ func (c *CachedIndexation) Indexation() *Indexation {
 
 func indexationFactory(key []byte, data []byte) (objectstorage.StorableObject, error) {
 	return &Indexation{
-		index:     key[:IndexationIndexLength],
-		messageID: hornet.MessageIDFromSlice(key[IndexationIndexLength : IndexationIndexLength+iotago.MessageIDLength]),
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		index:               key[:IndexationIndexLength],
+		messageID:           hornet.MessageIDFromSlice(key[IndexationIndexLength : IndexationIndexLength+iotago.MessageIDLength]),
 	}, nil
 }
 

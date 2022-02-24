@@ -25,7 +25,7 @@ type OnSolidEntryPoint func(messageID hornet.MessageID)
 // Caution: condition func is not in DFS order
 func TraverseParents(ctx context.Context, dbStorage *storage.Storage, parents hornet.MessageIDs, condition Predicate, consumer Consumer, onMissingParent OnMissingParent, onSolidEntryPoint OnSolidEntryPoint, traverseSolidEntryPoints bool) error {
 
-	t := NewParentTraverser(dbStorage)
+	t := NewParentTraverser(dbStorage.CachedMessageMetadataOrNil, dbStorage.SolidEntryPointsContain, nil)
 	defer t.Cleanup(true)
 
 	return t.Traverse(ctx, parents, condition, consumer, onMissingParent, onSolidEntryPoint, traverseSolidEntryPoints)
@@ -37,7 +37,7 @@ func TraverseParents(ctx context.Context, dbStorage *storage.Storage, parents ho
 // Caution: condition func is not in DFS order
 func TraverseParentsOfMessage(ctx context.Context, dbStorage *storage.Storage, startMessageID hornet.MessageID, condition Predicate, consumer Consumer, onMissingParent OnMissingParent, onSolidEntryPoint OnSolidEntryPoint, traverseSolidEntryPoints bool) error {
 
-	t := NewParentTraverser(dbStorage)
+	t := NewParentTraverser(dbStorage.CachedMessageMetadataOrNil, dbStorage.SolidEntryPointsContain, nil)
 	defer t.Cleanup(true)
 
 	return t.Traverse(ctx, hornet.MessageIDs{startMessageID}, condition, consumer, onMissingParent, onSolidEntryPoint, traverseSolidEntryPoints)
@@ -48,7 +48,7 @@ func TraverseParentsOfMessage(ctx context.Context, dbStorage *storage.Storage, s
 // It is unsorted BFS because the children are not ordered in the database.
 func TraverseChildren(ctx context.Context, dbStorage *storage.Storage, startMessageID hornet.MessageID, condition Predicate, consumer Consumer, walkAlreadyDiscovered bool, iteratorOptions ...storage.IteratorOption) error {
 
-	t := NewChildrenTraverser(dbStorage)
+	t := NewChildrenTraverser(dbStorage.CachedMessageMetadataOrNil, dbStorage.ChildrenMessageIDs, nil)
 	defer t.Cleanup(true)
 
 	return t.Traverse(ctx, startMessageID, condition, consumer, walkAlreadyDiscovered, iteratorOptions...)

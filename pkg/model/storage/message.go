@@ -11,7 +11,7 @@ import (
 )
 
 type Message struct {
-	objectstorage.StorableObjectFlags
+	*objectstorage.StorableObjectFlags
 
 	// Key
 	messageID hornet.MessageID
@@ -35,7 +35,9 @@ func NewMessage(iotaMsg *iotago.Message, deSeriMode serializer.DeSerializationMo
 	}
 	messageID := hornet.MessageIDFromArray(*msgHash)
 
-	msg := &Message{messageID: messageID, data: data}
+	msg := &Message{
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		messageID:           messageID, data: data}
 
 	msg.messageOnce.Do(func() {
 		msg.message = iotaMsg
@@ -57,13 +59,21 @@ func MessageFromBytes(data []byte, deSeriMode serializer.DeSerializationMode) (*
 	}
 	messageID := hornet.MessageIDFromArray(*msgHash)
 
-	msg := &Message{messageID: messageID, data: data}
+	msg := &Message{
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		messageID:           messageID,
+		data:                data,
+	}
 
 	msg.messageOnce.Do(func() {
 		msg.message = iotaMsg
 	})
 
 	return msg, nil
+}
+
+func (msg *Message) Flags() *objectstorage.StorableObjectFlags {
+	return msg.StorableObjectFlags
 }
 
 func (msg *Message) MessageID() hornet.MessageID {

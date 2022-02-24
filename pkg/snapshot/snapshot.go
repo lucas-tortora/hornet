@@ -186,12 +186,12 @@ func (s *SnapshotManager) forEachSolidEntryPoint(ctx context.Context, targetInde
 
 	solidEntryPoints := make(map[string]milestone.Index)
 
-	metadataMemcache := storage.NewMetadataMemcache(s.storage)
+	metadataMemcache := storage.NewMetadataMemcache(s.storage.CachedMessageMetadataOrNil)
 	defer metadataMemcache.Cleanup(true)
 
 	// we share the same traverser for all milestones, so we don't cleanup the cachedMessages in between.
 	// we don't need to call cleanup at the end, because we passed our own metadataMemcache.
-	parentsTraverser := dag.NewParentTraverser(s.storage, metadataMemcache)
+	parentsTraverser := dag.NewParentTraverser(metadataMemcache.CachedMetadataOrNil, s.storage.SolidEntryPointsContain, metadataMemcache.Cleanup)
 
 	// isSolidEntryPoint checks whether any direct child of the given message was referenced by a milestone which is above the target milestone.
 	isSolidEntryPoint := func(messageID hornet.MessageID, targetIndex milestone.Index) bool {
@@ -205,8 +205,10 @@ func (s *SnapshotManager) forEachSolidEntryPoint(ctx context.Context, targetInde
 
 			if referenced, at := cachedMsgMeta.Metadata().ReferencedWithIndex(); referenced && (at > targetIndex) {
 				// referenced by a later milestone than targetIndex => solidEntryPoint
+				cachedMsgMeta.Release(true)
 				return true
 			}
+			cachedMsgMeta.Release(true)
 		}
 		return false
 	}

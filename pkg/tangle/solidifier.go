@@ -63,7 +63,7 @@ func (t *Tangle) SolidQueueCheck(
 	messageIDsToRequest := make(map[string]struct{})
 
 	// we don't need to call cleanup at the end, because we pass our own metadataMemcache.
-	parentsTraverser := dag.NewParentTraverser(t.storage, metadataMemcache)
+	parentsTraverser := dag.NewParentTraverser(metadataMemcache.CachedMetadataOrNil, t.storage.SolidEntryPointsContain, metadataMemcache.Cleanup)
 
 	// collect all msg to solidify by traversing the tangle
 	if err := parentsTraverser.Traverse(
@@ -123,9 +123,11 @@ func (t *Tangle) SolidQueueCheck(
 		cachedMsgMeta := metadataMemcache.CachedMetadataOrNil(messageID)
 		if cachedMsgMeta == nil {
 			t.LogPanicf("solidQueueCheck: Message metadata not found: %v", messageID.ToHex())
+			return
 		}
 
 		t.markMessageAsSolid(cachedMsgMeta.Retain())
+		cachedMsgMeta.Release(true)
 	}
 
 	tSolid := time.Now()
@@ -233,8 +235,8 @@ func (t *Tangle) solidifyMilestone(newMilestoneIndex milestone.Index, force bool
 	milestoneSolidificationCtx, milestoneSolidificationCancelFunc := t.newMilestoneSolidificationCtx()
 	defer milestoneSolidificationCancelFunc()
 
-	messagesMemcache := storage.NewMessagesMemcache(t.storage)
-	metadataMemcache := storage.NewMetadataMemcache(t.storage)
+	messagesMemcache := storage.NewMessagesMemcache(t.storage.CachedMessageOrNil)
+	metadataMemcache := storage.NewMetadataMemcache(t.storage.CachedMessageMetadataOrNil)
 
 	// release all messages at the end
 	defer messagesMemcache.Cleanup(true)
@@ -284,7 +286,7 @@ func (t *Tangle) solidifyMilestone(newMilestoneIndex milestone.Index, force bool
 	var timeStartConfirmation, timeSetConfirmedMilestoneIndex, timeUpdateConeRootIndexes, timeConfirmedMilestoneChanged, timeConfirmedMilestoneIndexChanged, timeMilestoneConfirmedSyncEvent, timeMilestoneConfirmed time.Time
 
 	timeStart := time.Now()
-	confirmedMilestoneStats, confirmationMetrics, err := whiteflag.ConfirmMilestone(t.storage, t.serverMetrics, messagesMemcache, metadataMemcache, cachedMsToSolidify.Milestone().MessageID,
+	confirmedMilestoneStats, confirmationMetrics, err := whiteflag.ConfirmMilestone(t.storage, t.serverMetrics, metadataMemcache.CachedMetadataOrNil, messagesMemcache.CachedMessageOrNil, cachedMsToSolidify.Milestone().MessageID,
 		func(msgMeta *storage.CachedMetadata, index milestone.Index, confTime uint64) {
 			t.Events.MessageReferenced.Trigger(msgMeta, index, confTime)
 		},

@@ -72,8 +72,8 @@ func computeWhiteFlagMutations(c echo.Context) (*computeWhiteFlagMutationsRespon
 		})
 	}
 
-	messagesMemcache := storage.NewMessagesMemcache(deps.Storage)
-	metadataMemcache := storage.NewMetadataMemcache(deps.Storage)
+	messagesMemcache := storage.NewMessagesMemcache(deps.Storage.CachedMessageOrNil)
+	metadataMemcache := storage.NewMetadataMemcache(deps.Storage.CachedMessageMetadataOrNil)
 
 	defer func() {
 		// deregister the events to free the memory
@@ -109,7 +109,7 @@ func computeWhiteFlagMutations(c echo.Context) (*computeWhiteFlagMutationsRespon
 
 	// at this point all parents are solid
 	// compute merkle tree root
-	mutations, err := whiteflag.ComputeWhiteFlagMutations(Plugin.Daemon().ContextStopped(), deps.Storage, request.Index, metadataMemcache, messagesMemcache, parents)
+	mutations, err := whiteflag.ComputeWhiteFlagMutations(Plugin.Daemon().ContextStopped(), deps.Storage, request.Index, metadataMemcache.CachedMetadataOrNil, messagesMemcache.CachedMessageOrNil, parents)
 	if err != nil {
 		if errors.Is(err, common.ErrOperationAborted) {
 			return nil, errors.WithMessagef(echo.ErrServiceUnavailable, "failed to compute white flag mutations: %s", err)

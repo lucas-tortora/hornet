@@ -6,16 +6,21 @@ import (
 )
 
 type Child struct {
-	objectstorage.StorableObjectFlags
+	*objectstorage.StorableObjectFlags
 	parentMessageID hornet.MessageID
 	childMessageID  hornet.MessageID
 }
 
 func NewChild(parentMessageID hornet.MessageID, childMessageID hornet.MessageID) *Child {
 	return &Child{
-		parentMessageID: parentMessageID,
-		childMessageID:  childMessageID,
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		parentMessageID:     parentMessageID,
+		childMessageID:      childMessageID,
 	}
+}
+
+func (a *Child) Flags() *objectstorage.StorableObjectFlags {
+	return a.StorableObjectFlags
 }
 
 func (a *Child) ParentMessageID() hornet.MessageID {

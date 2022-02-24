@@ -52,8 +52,8 @@ type ConfirmationMetrics struct {
 func ConfirmMilestone(
 	dbStorage *storage.Storage,
 	serverMetrics *metrics.ServerMetrics,
-	messagesMemcache *storage.MessagesMemcache,
-	metadataMemcache *storage.MetadataMemcache,
+	cachedMetadataFunc storage.CachedMessageMetadataFunc,
+	cachedMessageFunc storage.CachedMessageFunc,
 	milestoneMessageID hornet.MessageID,
 	forEachReferencedMessage func(messageMetadata *storage.CachedMetadata, index milestone.Index, confTime uint64),
 	onMilestoneConfirmed func(confirmation *Confirmation),
@@ -61,10 +61,11 @@ func ConfirmMilestone(
 	forEachNewSpent func(index milestone.Index, spent *utxo.Spent),
 	onReceipt func(r *utxo.ReceiptTuple) error) (*ConfirmedMilestoneStats, *ConfirmationMetrics, error) {
 
-	cachedMilestoneMessage := messagesMemcache.CachedMessageOrNil(milestoneMessageID)
+	cachedMilestoneMessage := cachedMessageFunc(milestoneMessageID)
 	if cachedMilestoneMessage == nil {
 		return nil, nil, fmt.Errorf("milestone message not found: %v", milestoneMessageID.ToHex())
 	}
+	defer cachedMilestoneMessage.Release(true)
 
 	dbStorage.UTXOManager().WriteLockLedger()
 	defer dbStorage.UTXOManager().WriteUnlockLedger()
@@ -86,7 +87,7 @@ func ConfirmMilestone(
 
 	// we pass a background context here to not cancel the whiteflag computation!
 	// otherwise the node could panic at shutdown.
-	mutations, err := ComputeWhiteFlagMutations(context.Background(), dbStorage, milestoneIndex, metadataMemcache, messagesMemcache, message.Parents())
+	mutations, err := ComputeWhiteFlagMutations(context.Background(), dbStorage, milestoneIndex, cachedMetadataFunc, cachedMessageFunc, message.Parents())
 	if err != nil {
 		// According to the RFC we should panic if we encounter any invalid messages during confirmation
 		return nil, nil, fmt.Errorf("confirmMilestone: whiteflag.ComputeConfirmation failed with Error: %w", err)
@@ -168,11 +169,12 @@ func ConfirmMilestone(
 
 	// load the message for the given id
 	forMessageMetadataWithMessageID := func(messageID hornet.MessageID, do func(meta *storage.CachedMetadata)) error {
-		cachedMsgMeta := metadataMemcache.CachedMetadataOrNil(messageID) // meta +1
+		cachedMsgMeta := cachedMetadataFunc(messageID) // meta +1
 		if cachedMsgMeta == nil {
 			return fmt.Errorf("confirmMilestone: Message not found: %v", messageID.ToHex())
 		}
 		do(cachedMsgMeta)
+		cachedMsgMeta.Release(true)
 		return nil
 	}
 
@@ -189,9 +191,13 @@ func ConfirmMilestone(
 				meta.Metadata().SetConeRootIndexes(milestoneIndex, milestoneIndex, milestoneIndex)
 				confirmedMilestoneStats.MessagesReferenced++
 				confirmedMilestoneStats.MessagesIncludedWithTransactions++
-				serverMetrics.IncludedTransactionMessages.Inc()
-				serverMetrics.ReferencedMessages.Inc()
-				forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+				if serverMetrics != nil {
+					serverMetrics.IncludedTransactionMessages.Inc()
+					serverMetrics.ReferencedMessages.Inc()
+				}
+				if forEachReferencedMessage != nil {
+					forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+				}
 			}
 		}); err != nil {
 			return nil, nil, err
@@ -208,9 +214,13 @@ func ConfirmMilestone(
 				meta.Metadata().SetConeRootIndexes(milestoneIndex, milestoneIndex, milestoneIndex)
 				confirmedMilestoneStats.MessagesReferenced++
 				confirmedMilestoneStats.MessagesExcludedWithoutTransactions++
-				serverMetrics.NoTransactionMessages.Inc()
-				serverMetrics.ReferencedMessages.Inc()
-				forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+				if serverMetrics != nil {
+					serverMetrics.NoTransactionMessages.Inc()
+					serverMetrics.ReferencedMessages.Inc()
+				}
+				if forEachReferencedMessage != nil {
+					forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+				}
 			}
 		}); err != nil {
 			return nil, nil, err
@@ -227,9 +237,13 @@ func ConfirmMilestone(
 			meta.Metadata().SetConeRootIndexes(milestoneIndex, milestoneIndex, milestoneIndex)
 			confirmedMilestoneStats.MessagesReferenced++
 			confirmedMilestoneStats.MessagesExcludedWithoutTransactions++
-			serverMetrics.NoTransactionMessages.Inc()
-			serverMetrics.ReferencedMessages.Inc()
-			forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+			if serverMetrics != nil {
+				serverMetrics.NoTransactionMessages.Inc()
+				serverMetrics.ReferencedMessages.Inc()
+			}
+			if forEachReferencedMessage != nil {
+				forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+			}
 		}
 	}); err != nil {
 		return nil, nil, err
@@ -245,9 +259,13 @@ func ConfirmMilestone(
 				meta.Metadata().SetConeRootIndexes(milestoneIndex, milestoneIndex, milestoneIndex)
 				confirmedMilestoneStats.MessagesReferenced++
 				confirmedMilestoneStats.MessagesExcludedWithConflictingTransactions++
-				serverMetrics.ConflictingTransactionMessages.Inc()
-				serverMetrics.ReferencedMessages.Inc()
-				forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+				if serverMetrics != nil {
+					serverMetrics.ConflictingTransactionMessages.Inc()
+					serverMetrics.ReferencedMessages.Inc()
+				}
+				if forEachReferencedMessage != nil {
+					forEachReferencedMessage(meta, milestoneIndex, confirmationTime)
+				}
 			}
 		}); err != nil {
 			return nil, nil, err
@@ -255,17 +273,23 @@ func ConfirmMilestone(
 	}
 	timeApplyExcludedWithConflictingTransactions := time.Now()
 
-	for _, output := range newOutputs {
-		forEachNewOutput(milestoneIndex, output)
+	if forEachNewOutput != nil {
+		for _, output := range newOutputs {
+			forEachNewOutput(milestoneIndex, output)
+		}
 	}
 	timeForEachNewOutput := time.Now()
 
-	for _, spent := range newSpents {
-		forEachNewSpent(milestoneIndex, spent)
+	if forEachNewSpent != nil {
+		for _, spent := range newSpents {
+			forEachNewSpent(milestoneIndex, spent)
+		}
 	}
 	timeForEachNewSpent := time.Now()
 
-	onMilestoneConfirmed(confirmation)
+	if onMilestoneConfirmed != nil {
+		onMilestoneConfirmed(confirmation)
+	}
 	timeOnMilestoneConfirmed := time.Now()
 
 	return confirmedMilestoneStats, &ConfirmationMetrics{

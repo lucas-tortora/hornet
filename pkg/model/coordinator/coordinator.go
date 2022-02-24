@@ -324,8 +324,8 @@ func (coo *Coordinator) InitState(bootstrap bool, startIndex milestone.Index) er
 // Returns non-critical and critical errors.
 func (coo *Coordinator) createAndSendMilestone(parents hornet.MessageIDs, newMilestoneIndex milestone.Index) error {
 
-	messagesMemcache := storage.NewMessagesMemcache(coo.storage)
-	metadataMemcache := storage.NewMetadataMemcache(coo.storage)
+	messagesMemcache := storage.NewMessagesMemcache(coo.storage.CachedMessageOrNil)
+	metadataMemcache := storage.NewMetadataMemcache(coo.storage.CachedMessageMetadataOrNil)
 
 	defer func() {
 		// All releases are forced since the cone is referenced and not needed anymore
@@ -342,7 +342,7 @@ func (coo *Coordinator) createAndSendMilestone(parents hornet.MessageIDs, newMil
 	// compute merkle tree root
 	// we pass a background context here to not cancel the whiteflag computation!
 	// otherwise the coordinator could panic at shutdown.
-	mutations, err := whiteflag.ComputeWhiteFlagMutations(context.Background(), coo.storage, newMilestoneIndex, metadataMemcache, messagesMemcache, parents)
+	mutations, err := whiteflag.ComputeWhiteFlagMutations(context.Background(), coo.storage, newMilestoneIndex, metadataMemcache.CachedMetadataOrNil, messagesMemcache.CachedMessageOrNil, parents)
 	if err != nil {
 		return common.CriticalError(fmt.Errorf("failed to compute white flag mutations: %w", err))
 	}

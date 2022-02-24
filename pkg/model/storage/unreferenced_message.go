@@ -9,16 +9,21 @@ import (
 )
 
 type UnreferencedMessage struct {
-	objectstorage.StorableObjectFlags
+	*objectstorage.StorableObjectFlags
 	latestMilestoneIndex milestone.Index
 	messageID            hornet.MessageID
 }
 
 func NewUnreferencedMessage(msIndex milestone.Index, messageID hornet.MessageID) *UnreferencedMessage {
 	return &UnreferencedMessage{
+		StorableObjectFlags:  objectstorage.NewStorableObjectFlags(),
 		latestMilestoneIndex: msIndex,
 		messageID:            messageID,
 	}
+}
+
+func (t *UnreferencedMessage) Flags() *objectstorage.StorableObjectFlags {
+	return t.StorableObjectFlags
 }
 
 func (t *UnreferencedMessage) LatestMilestoneIndex() milestone.Index {

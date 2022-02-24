@@ -4,16 +4,24 @@ import (
 	"github.com/gohornet/hornet/pkg/model/hornet"
 )
 
+type SolidEntryPointsContainFunc func(messageID hornet.MessageID) bool
+
+type ChildrenMessageIDsFunc func(messageID hornet.MessageID, iteratorOptions ...IteratorOption) hornet.MessageIDs
+
+type CleanupFunc func(forceRelease bool)
+
+type CachedMessageFunc func(messageID hornet.MessageID) *CachedMessage
+
 type MessagesMemcache struct {
-	storage    *Storage
-	cachedMsgs map[string]*CachedMessage
+	cachedMessageFunc CachedMessageFunc
+	cachedMsgs        map[string]*CachedMessage
 }
 
 // NewMessagesMemcache creates a new MessagesMemcache instance.
-func NewMessagesMemcache(dbStorage *Storage) *MessagesMemcache {
+func NewMessagesMemcache(cachedMessageFunc CachedMessageFunc) *MessagesMemcache {
 	return &MessagesMemcache{
-		storage:    dbStorage,
-		cachedMsgs: make(map[string]*CachedMessage),
+		cachedMessageFunc: cachedMessageFunc,
+		cachedMsgs:        make(map[string]*CachedMessage),
 	}
 }
 
@@ -36,7 +44,7 @@ func (c *MessagesMemcache) CachedMessageOrNil(messageID hornet.MessageID) *Cache
 	// load up msg
 	cachedMsg, exists := c.cachedMsgs[messageIDMapKey]
 	if !exists {
-		cachedMsg = c.storage.CachedMessageOrNil(messageID) // msg +1
+		cachedMsg = c.cachedMessageFunc(messageID) // msg +1 (this is the one that gets cleared by "Cleanup")
 		if cachedMsg == nil {
 			return nil
 		}
@@ -45,5 +53,5 @@ func (c *MessagesMemcache) CachedMessageOrNil(messageID hornet.MessageID) *Cache
 		c.cachedMsgs[messageIDMapKey] = cachedMsg
 	}
 
-	return cachedMsg
+	return cachedMsg.Retain() // msg +1
 }

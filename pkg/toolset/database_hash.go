@@ -259,7 +259,7 @@ func databaseLedgerHash(args []string) error {
 		_ = utxoStore.Close()
 	}()
 
-	dbStorage, err := storage.New(tangleStore, utxoStore)
+	dbStorage, err := storage.New(tangleStore, utxoStore, false)
 	if err != nil {
 		return err
 	}

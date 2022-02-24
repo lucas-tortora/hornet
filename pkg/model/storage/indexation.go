@@ -16,16 +16,21 @@ func PadIndexationIndex(index []byte) []byte {
 }
 
 type Indexation struct {
-	objectstorage.StorableObjectFlags
+	*objectstorage.StorableObjectFlags
 	index     []byte
 	messageID hornet.MessageID
 }
 
 func NewIndexation(index []byte, messageID hornet.MessageID) *Indexation {
 	return &Indexation{
-		index:     PadIndexationIndex(index),
-		messageID: messageID,
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		index:               PadIndexationIndex(index),
+		messageID:           messageID,
 	}
+}
+
+func (i *Indexation) Flags() *objectstorage.StorableObjectFlags {
+	return i.StorableObjectFlags
 }
 
 func (i *Indexation) Index() []byte {

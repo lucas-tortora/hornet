@@ -21,9 +21,10 @@ const (
 // newWorkUnit creates a new WorkUnit and initializes values by unmarshaling key.
 func newWorkUnit(key []byte, messageProcessor *MessageProcessor) *WorkUnit {
 	wu := &WorkUnit{
-		receivedMsgBytes: make([]byte, len(key)),
-		receivedFrom:     make([]*Protocol, 0),
-		messageProcessor: messageProcessor,
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		receivedMsgBytes:    make([]byte, len(key)),
+		receivedFrom:        make([]*Protocol, 0),
+		messageProcessor:    messageProcessor,
 	}
 	copy(wu.receivedMsgBytes, key)
 	return wu
@@ -43,7 +44,7 @@ func (c *CachedWorkUnit) WorkUnit() *WorkUnit {
 // associated requests from peers. There is at most one WorkUnit active per same
 // message bytes.
 type WorkUnit struct {
-	objectstorage.StorableObjectFlags
+	*objectstorage.StorableObjectFlags
 	processingLock syncutils.Mutex
 
 	messageProcessor *MessageProcessor
@@ -60,6 +61,10 @@ type WorkUnit struct {
 	// received from
 	receivedFromLock syncutils.RWMutex
 	receivedFrom     []*Protocol
+}
+
+func (wu *WorkUnit) Flags() *objectstorage.StorableObjectFlags {
+	return wu.StorableObjectFlags
 }
 
 func (wu *WorkUnit) Update(_ objectstorage.StorableObject) {

@@ -75,7 +75,7 @@ func snapshotHash(args []string) error {
 		_ = os.RemoveAll(tempDir)
 	}()
 
-	dbStorage, err := storage.New(tangleStore, utxoStore)
+	dbStorage, err := storage.New(tangleStore, utxoStore, false)
 	if err != nil {
 		return err
 	}

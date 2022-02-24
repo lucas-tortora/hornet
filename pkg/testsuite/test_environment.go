@@ -145,7 +145,7 @@ func SetupTestEnvironment(testInterface testing.TB, genesisAddress *iotago.Ed255
 
 	te.tangleStore = mapdb.NewMapDB()
 	te.utxoStore = mapdb.NewMapDB()
-	te.storage, err = storage.New(te.tangleStore, te.utxoStore, TestProfileCaches)
+	te.storage, err = storage.New(te.tangleStore, te.utxoStore, false, TestProfileCaches)
 	require.NoError(te.TestInterface, err)
 
 	// Initialize SEP

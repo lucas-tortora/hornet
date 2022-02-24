@@ -25,13 +25,13 @@ type FutureConeSolidifier struct {
 // NewFutureConeSolidifier creates a new FutureConeSolidifier instance.
 func NewFutureConeSolidifier(dbStorage *storage.Storage, markMessageAsSolidFunc func(*storage.CachedMetadata)) *FutureConeSolidifier {
 
-	metadataMemcache := storage.NewMetadataMemcache(dbStorage)
+	metadataMemcache := storage.NewMetadataMemcache(dbStorage.CachedMessageMetadataOrNil)
 
 	return &FutureConeSolidifier{
 		storage:                dbStorage,
 		markMessageAsSolidFunc: markMessageAsSolidFunc,
 		metadataMemcache:       metadataMemcache,
-		childrenTraverser:      dag.NewChildrenTraverser(dbStorage, metadataMemcache),
+		childrenTraverser:      dag.NewChildrenTraverser(metadataMemcache.CachedMetadataOrNil, dbStorage.ChildrenMessageIDs, metadataMemcache.Cleanup),
 	}
 }
 
@@ -62,7 +62,7 @@ func (s *FutureConeSolidifier) SolidifyFutureConesWithMetadataMemcache(ctx conte
 	defer s.Unlock()
 
 	// we do not cleanup the traverser to not cleanup the MetadataMemcache
-	t := dag.NewChildrenTraverser(s.storage, metadataMemcache)
+	t := dag.NewChildrenTraverser(metadataMemcache.CachedMetadataOrNil, s.storage.ChildrenMessageIDs, metadataMemcache.Cleanup)
 
 	return s.solidifyFutureCone(ctx, t, metadataMemcache, messageIDs)
 }
@@ -105,8 +105,10 @@ func (s *FutureConeSolidifier) solidifyFutureCone(ctx context.Context, traverser
 					if !cachedParentMsgMeta.Metadata().IsSolid() {
 						// parent is not solid => message is not solid
 						// do not walk the future cone if the current message is not solid
+						cachedParentMsgMeta.Release(true)
 						return false, nil
 					}
+					cachedParentMsgMeta.Release(true)
 				}
 
 				// mark current message as solid

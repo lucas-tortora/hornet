@@ -13,8 +13,9 @@ import (
 )
 
 type ParentTraverser struct {
-	storage          *storage.Storage
-	metadataMemcache *storage.MetadataMemcache
+	cachedMetadataFunc          storage.CachedMessageMetadataFunc
+	solidEntryPointsContainFunc storage.SolidEntryPointsContainFunc
+	cleanupFunc                 storage.CleanupFunc
 
 	// stack holding the ordered msg to process
 	stack *list.List
@@ -36,19 +37,18 @@ type ParentTraverser struct {
 }
 
 // NewParentTraverser create a new traverser to traverse the parents (past cone)
-func NewParentTraverser(dbStorage *storage.Storage, metadataMemcache ...*storage.MetadataMemcache) *ParentTraverser {
+func NewParentTraverser(
+	cachedMetadataFunc storage.CachedMessageMetadataFunc,
+	solidEntryPointsContainFunc storage.SolidEntryPointsContainFunc,
+	cleanupFunc storage.CleanupFunc) *ParentTraverser {
 
 	t := &ParentTraverser{
-		storage:          dbStorage,
-		metadataMemcache: storage.NewMetadataMemcache(dbStorage),
-		stack:            list.New(),
-		processed:        make(map[string]struct{}),
-		checked:          make(map[string]bool),
-	}
-
-	if len(metadataMemcache) > 0 && metadataMemcache[0] != nil {
-		// use the memcache from outside to share the same cached metadata
-		t.metadataMemcache = metadataMemcache[0]
+		cachedMetadataFunc:          cachedMetadataFunc,
+		solidEntryPointsContainFunc: solidEntryPointsContainFunc,
+		cleanupFunc:                 cleanupFunc,
+		stack:                       list.New(),
+		processed:                   make(map[string]struct{}),
+		checked:                     make(map[string]bool),
 	}
 
 	return t
@@ -64,7 +64,9 @@ func (t *ParentTraverser) reset() {
 // Cleanup releases all the cached objects that have been traversed.
 // This MUST be called by the user at the end.
 func (t *ParentTraverser) Cleanup(forceRelease bool) {
-	t.metadataMemcache.Cleanup(forceRelease)
+	if t.cleanupFunc != nil {
+		t.cleanupFunc(forceRelease)
+	}
 }
 
 // Traverse starts to traverse the parents (past cone) in the given order until
@@ -128,7 +130,7 @@ func (t *ParentTraverser) processStackParents() error {
 	}
 
 	// check if the message is a solid entry point
-	if t.storage.SolidEntryPointsContain(currentMessageID) {
+	if t.solidEntryPointsContainFunc(currentMessageID) {
 		if t.onSolidEntryPoint != nil {
 			t.onSolidEntryPoint(currentMessageID)
 		}
@@ -142,7 +144,7 @@ func (t *ParentTraverser) processStackParents() error {
 		}
 	}
 
-	cachedMsgMeta := t.metadataMemcache.CachedMetadataOrNil(currentMessageID) // meta +1
+	cachedMsgMeta := t.cachedMetadataFunc(currentMessageID) // meta +1
 	if cachedMsgMeta == nil {
 		// remove the message from the stack, the parents are not traversed
 		t.processed[currentMessageIDMapKey] = struct{}{}
@@ -157,6 +159,7 @@ func (t *ParentTraverser) processStackParents() error {
 		// stop processing the stack if the caller returns an error
 		return t.onMissingParent(currentMessageID)
 	}
+	defer cachedMsgMeta.Release(true) // meta -1
 
 	traverse, checkedBefore := t.checked[currentMessageIDMapKey]
 	if !checkedBefore {

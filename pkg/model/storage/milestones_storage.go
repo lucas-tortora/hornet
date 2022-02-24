@@ -28,9 +28,10 @@ func milestoneIndexFromDatabaseKey(key []byte) milestone.Index {
 
 func milestoneFactory(key []byte, data []byte) (objectstorage.StorableObject, error) {
 	return &Milestone{
-		Index:     milestoneIndexFromDatabaseKey(key),
-		MessageID: hornet.MessageIDFromSlice(data[:iotago.MessageIDLength]),
-		Timestamp: time.Unix(int64(binary.LittleEndian.Uint64(data[iotago.MessageIDLength:iotago.MessageIDLength+serializer.UInt64ByteSize])), 0),
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		Index:               milestoneIndexFromDatabaseKey(key),
+		MessageID:           hornet.MessageIDFromSlice(data[:iotago.MessageIDLength]),
+		Timestamp:           time.Unix(int64(binary.LittleEndian.Uint64(data[iotago.MessageIDLength:iotago.MessageIDLength+serializer.UInt64ByteSize])), 0),
 	}, nil
 }
 
@@ -68,7 +69,7 @@ func (s *Storage) configureMilestoneStorage(store kvstore.KVStore, opts *profile
 }
 
 type Milestone struct {
-	objectstorage.StorableObjectFlags
+	*objectstorage.StorableObjectFlags
 
 	Index     milestone.Index
 	MessageID hornet.MessageID
@@ -76,6 +77,10 @@ type Milestone struct {
 }
 
 // ObjectStorage interface
+
+func (ms *Milestone) Flags() *objectstorage.StorableObjectFlags {
+	return ms.StorableObjectFlags
+}
 
 func (ms *Milestone) Update(_ objectstorage.StorableObject) {
 	panic(fmt.Sprintf("Milestone should never be updated: %v (%d)", ms.MessageID.ToHex(), ms.Index))
@@ -179,9 +184,10 @@ func (s *Storage) ForEachMilestoneIndex(consumer MilestoneIndexConsumer, iterato
 func (s *Storage) StoreMilestoneIfAbsent(index milestone.Index, messageID hornet.MessageID, timestamp time.Time) (cachedMilestone *CachedMilestone, newlyAdded bool) {
 
 	cachedMs, newlyAdded := s.milestoneStorage.StoreIfAbsent(&Milestone{
-		Index:     index,
-		MessageID: messageID,
-		Timestamp: timestamp,
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		Index:               index,
+		MessageID:           messageID,
+		Timestamp:           timestamp,
 	})
 	if !newlyAdded {
 		return nil, false

@@ -150,7 +150,7 @@ func ConeRootIndexes(ctx context.Context, dbStorage *storage.Storage, cachedMsgM
 func UpdateConeRootIndexes(ctx context.Context, dbStorage *storage.Storage, metadataMemcache *storage.MetadataMemcache, messageIDs hornet.MessageIDs, cmi milestone.Index, iteratorOptions ...storage.IteratorOption) error {
 	traversed := map[string]struct{}{}
 
-	t := NewChildrenTraverser(dbStorage, metadataMemcache)
+	t := NewChildrenTraverser(metadataMemcache.CachedMetadataOrNil, dbStorage.ChildrenMessageIDs, metadataMemcache.Cleanup)
 
 	if metadataMemcache == nil {
 		// we only cleanup the traverser if no MetadataMemcache was given

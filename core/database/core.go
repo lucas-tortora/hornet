@@ -233,7 +233,7 @@ func provide(c *dig.Container) {
 
 	if err := c.Provide(func(deps storageDeps) storageOut {
 
-		store, err := storage.New(deps.TangleDatabase.KVStore(), deps.UTXODatabase.KVStore(), deps.Profile.Caches)
+		store, err := storage.New(deps.TangleDatabase.KVStore(), deps.UTXODatabase.KVStore(), false, deps.Profile.Caches)
 		if err != nil {
 			CorePlugin.LogPanicf("can't initialize storage: %s", err)
 		}

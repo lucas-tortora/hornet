@@ -15,6 +15,7 @@ import (
 
 const (
 	FlagToolDatabaseEngine       = "databaseEngine"
+	FlagToolDatabaseEngineSource = "sourceDatabaseEngine"
 	FlagToolDatabaseEngineTarget = "targetDatabaseEngine"
 
 	FlagToolDatabasePath       = "databasePath"
@@ -63,9 +64,10 @@ const (
 	ToolSnapHash                = "snap-hash"
 	ToolBenchmarkIO             = "bench-io"
 	ToolBenchmarkCPU            = "bench-cpu"
-	ToolDatabaseMigration       = "db-migration"
 	ToolDatabaseLedgerHash      = "db-hash"
 	ToolDatabaseHealth          = "db-health"
+	ToolDatabaseMerge           = "db-merge"
+	ToolDatabaseMigration       = "db-migration"
 	ToolDatabaseSplit           = "db-split"
 	ToolCoordinatorFixStateFile = "coo-fix-state"
 )
@@ -119,9 +121,10 @@ func HandleTools() {
 		ToolSnapHash:                snapshotHash,
 		ToolBenchmarkIO:             benchmarkIO,
 		ToolBenchmarkCPU:            benchmarkCPU,
-		ToolDatabaseMigration:       databaseMigration,
 		ToolDatabaseLedgerHash:      databaseLedgerHash,
 		ToolDatabaseHealth:          databaseHealth,
+		ToolDatabaseMerge:           databaseMerge,
+		ToolDatabaseMigration:       databaseMigration,
 		ToolDatabaseSplit:           databaseSplit,
 		ToolCoordinatorFixStateFile: coordinatorFixStateFile,
 	}
@@ -159,9 +162,10 @@ func listTools() {
 	fmt.Printf("%-20s calculates the sha256 hash of the ledger state inside a snapshot file\n", fmt.Sprintf("%s:", ToolSnapHash))
 	fmt.Printf("%-20s benchmarks the IO throughput\n", fmt.Sprintf("%s:", ToolBenchmarkIO))
 	fmt.Printf("%-20s benchmarks the CPU performance\n", fmt.Sprintf("%s:", ToolBenchmarkCPU))
-	fmt.Printf("%-20s migrates the database to another engine\n", fmt.Sprintf("%s:", ToolDatabaseMigration))
 	fmt.Printf("%-20s calculates the sha256 hash of the ledger state of a database\n", fmt.Sprintf("%s:", ToolDatabaseLedgerHash))
 	fmt.Printf("%-20s checks the health status of the database\n", fmt.Sprintf("%s:", ToolDatabaseHealth))
+	fmt.Printf("%-20s merges missing tangle data from a database to another one\n", fmt.Sprintf("%s:", ToolDatabaseMerge))
+	fmt.Printf("%-20s migrates the database to another engine\n", fmt.Sprintf("%s:", ToolDatabaseMigration))
 	fmt.Printf("%-20s split a legacy database into `tangle` and `utxo`\n", fmt.Sprintf("%s:", ToolDatabaseSplit))
 	fmt.Printf("%-20s applies the latest milestone in the database to the coordinator state file\n", fmt.Sprintf("%s:", ToolCoordinatorFixStateFile))
 }

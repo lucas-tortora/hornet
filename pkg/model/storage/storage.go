@@ -53,7 +53,7 @@ type Storage struct {
 	Events *packageEvents
 }
 
-func New(tangleStore kvstore.KVStore, utxoStore kvstore.KVStore, cachesProfile ...*profile.Caches) (*Storage, error) {
+func New(tangleStore kvstore.KVStore, utxoStore kvstore.KVStore, logging bool, cachesProfile ...*profile.Caches) (*Storage, error) {
 
 	s := &Storage{
 		tangleStore: tangleStore,
@@ -68,7 +68,7 @@ func New(tangleStore kvstore.KVStore, utxoStore kvstore.KVStore, cachesProfile .
 		},
 	}
 
-	if err := s.configureStorages(tangleStore, cachesProfile...); err != nil {
+	if err := s.configureStorages(tangleStore, logging, cachesProfile...); err != nil {
 		return nil, err
 	}
 
@@ -92,7 +92,7 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 	return &profile.Caches{
 		Addresses: &profile.CacheOpts{
 			CacheTime:                  "0ms",
-			ReleaseExecutorWorkerCount: 10,
+			ReleaseExecutorWorkerCount: 1,
 			LeakDetectionOptions: &profile.LeakDetectionOpts{
 				Enabled:               false,
 				MaxConsumersPerObject: 10,
@@ -101,7 +101,7 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 		},
 		Children: &profile.CacheOpts{
 			CacheTime:                  "0ms",
-			ReleaseExecutorWorkerCount: 10,
+			ReleaseExecutorWorkerCount: 1,
 			LeakDetectionOptions: &profile.LeakDetectionOpts{
 				Enabled:               false,
 				MaxConsumersPerObject: 10,
@@ -110,7 +110,7 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 		},
 		Indexations: &profile.CacheOpts{
 			CacheTime:                  "0ms",
-			ReleaseExecutorWorkerCount: 10,
+			ReleaseExecutorWorkerCount: 1,
 			LeakDetectionOptions: &profile.LeakDetectionOpts{
 				Enabled:               false,
 				MaxConsumersPerObject: 10,
@@ -119,7 +119,7 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 		},
 		Milestones: &profile.CacheOpts{
 			CacheTime:                  "0ms",
-			ReleaseExecutorWorkerCount: 10,
+			ReleaseExecutorWorkerCount: 1,
 			LeakDetectionOptions: &profile.LeakDetectionOpts{
 				Enabled:               false,
 				MaxConsumersPerObject: 10,
@@ -128,7 +128,7 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 		},
 		Messages: &profile.CacheOpts{
 			CacheTime:                  "0ms",
-			ReleaseExecutorWorkerCount: 10,
+			ReleaseExecutorWorkerCount: 1,
 			LeakDetectionOptions: &profile.LeakDetectionOpts{
 				Enabled:               false,
 				MaxConsumersPerObject: 10,
@@ -137,7 +137,7 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 		},
 		UnreferencedMessages: &profile.CacheOpts{
 			CacheTime:                  "0ms",
-			ReleaseExecutorWorkerCount: 10,
+			ReleaseExecutorWorkerCount: 1,
 			LeakDetectionOptions: &profile.LeakDetectionOpts{
 				Enabled:               false,
 				MaxConsumersPerObject: 10,
@@ -146,7 +146,7 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 		},
 		IncomingMessagesFilter: &profile.CacheOpts{
 			CacheTime:                  "0ms",
-			ReleaseExecutorWorkerCount: 10,
+			ReleaseExecutorWorkerCount: 1,
 			LeakDetectionOptions: &profile.LeakDetectionOpts{
 				Enabled:               false,
 				MaxConsumersPerObject: 10,
@@ -156,14 +156,152 @@ func (s *Storage) profileCachesDisabled() *profile.Caches {
 	}
 }
 
-func (s *Storage) configureStorages(tangleStore kvstore.KVStore, cachesProfile ...*profile.Caches) error {
+// profileLeakDetectionEnabled returns a Caches profile with caching disabled and leak detection enabled.
+func (s *Storage) profileCacheEnabled() *profile.Caches {
+	return &profile.Caches{
+		Addresses: &profile.CacheOpts{
+			CacheTime:                  "500ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               false,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "0ms",
+			},
+		},
+		Children: &profile.CacheOpts{
+			CacheTime:                  "500ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               false,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "0ms",
+			},
+		},
+		Indexations: &profile.CacheOpts{
+			CacheTime:                  "500ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               false,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "0ms",
+			},
+		},
+		Milestones: &profile.CacheOpts{
+			CacheTime:                  "500ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               false,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "0ms",
+			},
+		},
+		Messages: &profile.CacheOpts{
+			CacheTime:                  "500ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               false,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "0ms",
+			},
+		},
+		UnreferencedMessages: &profile.CacheOpts{
+			CacheTime:                  "500ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               false,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "0ms",
+			},
+		},
+		IncomingMessagesFilter: &profile.CacheOpts{
+			CacheTime:                  "500ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               false,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "0ms",
+			},
+		},
+	}
+}
+
+// profileLeakDetectionEnabled returns a Caches profile with caching disabled and leak detection enabled.
+func (s *Storage) profileLeakDetectionEnabled() *profile.Caches {
+	return &profile.Caches{
+		Addresses: &profile.CacheOpts{
+			CacheTime:                  "0ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               true,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "1s",
+			},
+		},
+		Children: &profile.CacheOpts{
+			CacheTime:                  "0ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               true,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "1s",
+			},
+		},
+		Indexations: &profile.CacheOpts{
+			CacheTime:                  "0ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               true,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "1s",
+			},
+		},
+		Milestones: &profile.CacheOpts{
+			CacheTime:                  "0ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               true,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "1s",
+			},
+		},
+		Messages: &profile.CacheOpts{
+			CacheTime:                  "0ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               true,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "1s",
+			},
+		},
+		UnreferencedMessages: &profile.CacheOpts{
+			CacheTime:                  "0ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               true,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "1s",
+			},
+		},
+		IncomingMessagesFilter: &profile.CacheOpts{
+			CacheTime:                  "0ms",
+			ReleaseExecutorWorkerCount: 1,
+			LeakDetectionOptions: &profile.LeakDetectionOpts{
+				Enabled:               true,
+				MaxConsumersPerObject: 10,
+				MaxConsumerHoldTime:   "1s",
+			},
+		},
+	}
+}
+
+func (s *Storage) configureStorages(tangleStore kvstore.KVStore, logging bool, cachesProfile ...*profile.Caches) error {
 
 	cachesOpts := s.profileCachesDisabled()
 	if len(cachesProfile) > 0 {
 		cachesOpts = cachesProfile[0]
 	}
 
-	if err := s.configureMessageStorage(tangleStore, cachesOpts.Messages); err != nil {
+	if err := s.configureMessageStorage(tangleStore, cachesOpts.Messages, logging); err != nil {
 		return err
 	}
 

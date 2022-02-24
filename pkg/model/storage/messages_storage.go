@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gohornet/hornet/pkg/common"
@@ -38,9 +39,20 @@ type CachedMessage struct {
 	metadata objectstorage.CachedObject
 }
 
+func NewCachedMessage(msg objectstorage.CachedObject, metadata objectstorage.CachedObject) *CachedMessage {
+	return &CachedMessage{
+		msg:      msg,
+		metadata: metadata,
+	}
+}
+
 // CachedMetadata contains the cached object only for metadata.
 type CachedMetadata struct {
 	objectstorage.CachedObject
+}
+
+func NewCachedMetadata(metadata objectstorage.CachedObject) *CachedMetadata {
+	return &CachedMetadata{CachedObject: metadata}
 }
 
 type CachedMessages []*CachedMessage
@@ -151,10 +163,11 @@ func (c *CachedMessage) Release(force ...bool) {
 	c.metadata.Release(force...)
 }
 
-func messageFactory(key []byte, data []byte) (objectstorage.StorableObject, error) {
+func MessageFactory(key []byte, data []byte) (objectstorage.StorableObject, error) {
 	msg := &Message{
-		messageID: hornet.MessageIDFromSlice(key[:iotago.MessageIDLength]),
-		data:      data,
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		messageID:           hornet.MessageIDFromSlice(key[:iotago.MessageIDLength]),
+		data:                data,
 	}
 
 	return msg, nil
@@ -168,7 +181,7 @@ func (s *Storage) MessageMetadataStorageSize() int {
 	return s.metadataStorage.GetSize()
 }
 
-func (s *Storage) configureMessageStorage(store kvstore.KVStore, opts *profile.CacheOpts) error {
+func (s *Storage) configureMessageStorage(store kvstore.KVStore, opts *profile.CacheOpts, logging bool) error {
 
 	cacheTime, err := time.ParseDuration(opts.CacheTime)
 	if err != nil {
@@ -182,9 +195,10 @@ func (s *Storage) configureMessageStorage(store kvstore.KVStore, opts *profile.C
 
 	s.messagesStorage = objectstorage.New(
 		store.WithRealm([]byte{common.StorePrefixMessages}),
-		messageFactory,
+		MessageFactory,
 		objectstorage.CacheTime(cacheTime),
 		objectstorage.PersistenceEnabled(true),
+		objectstorage.Logging(logging),
 		objectstorage.StoreOnCreation(true),
 		objectstorage.ReleaseExecutorWorkerCount(opts.ReleaseExecutorWorkerCount),
 		objectstorage.LeakDetectionEnabled(opts.LeakDetectionOptions.Enabled,
@@ -279,20 +293,34 @@ func (s *Storage) StoreMessageIfAbsent(message *Message) (cachedMsg *CachedMessa
 		newlyAdded = true
 
 		metadata := &MessageMetadata{
-			messageID: message.MessageID(),
-			parents:   hornet.MessageIDsFromSliceOfArrays(message.message.Parents),
+			StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+			messageID:           message.MessageID(),
+			parents:             hornet.MessageIDsFromSliceOfArrays(message.Message().Parents),
 		}
 
 		cachedMeta = s.metadataStorage.Store(metadata) // meta +1
 
-		message.Persist()
-		message.SetModified()
+		message.Persist(true)
+
+		keyStr := append(hornet.MessageID{common.StorePrefixMessages}, message.MessageID()...).ToHex()
+
+		if s.messagesStorage.Logging() {
+			println(fmt.Sprintf("SET MODIFIED ComputeIfAbsent: %s", keyStr))
+		}
+
+		message.SetModified(true, s.messagesStorage.Logging(), keyStr)
 		return message
-	})
+	}, true)
 
 	// if we didn't create a new entry - retrieve the corresponding metadata (it should always exist since it gets created atomically)
 	if !newlyAdded {
+		println("LEL????? FUCK")
 		cachedMeta = s.metadataStorage.Load(message.MessageID()) // meta +1
+	}
+
+	msg := cachedMsgData.Get().(*Message)
+	if msg == nil {
+		println("LEL????? FUCK ROFL")
 	}
 
 	return &CachedMessage{msg: cachedMsgData, metadata: cachedMeta}, newlyAdded

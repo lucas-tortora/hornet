@@ -93,11 +93,13 @@ func (m *MilestoneManager) VerifyMilestone(message *storage.Message) *iotago.Mil
 	for idx, parent := range message.Message().Parents {
 		if parent != ms.Parents[idx] {
 			// parents in message and payload have to be equal
+			println("PARENTS NOT EQUAL")
 			return nil
 		}
 	}
 
 	if err := ms.VerifySignatures(m.milestonePublicKeyCount, m.keyManager.PublicKeysSetForMilestoneIndex(milestone.Index(ms.Index))); err != nil {
+		println("WRONG SIGNATURE")
 		return nil
 	}
 

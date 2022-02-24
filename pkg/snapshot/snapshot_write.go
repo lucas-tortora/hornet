@@ -691,7 +691,7 @@ func MergeSnapshotsFiles(fullPath string, deltaPath string, targetFileName strin
 		_ = os.RemoveAll(tempDir)
 	}()
 
-	dbStorage, err := storage.New(tangleStore, utxoStore)
+	dbStorage, err := storage.New(tangleStore, utxoStore, false)
 	if err != nil {
 		return nil, err
 	}

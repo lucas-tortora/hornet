@@ -14,8 +14,9 @@ import (
 )
 
 type ChildrenTraverser struct {
-	storage          *storage.Storage
-	metadataMemcache *storage.MetadataMemcache
+	cachedMetadataFunc     storage.CachedMessageMetadataFunc
+	childrenMessageIDsFunc storage.ChildrenMessageIDsFunc
+	cleanupFunc            storage.CleanupFunc
 
 	// stack holding the ordered msg to process
 	stack *list.List
@@ -33,18 +34,17 @@ type ChildrenTraverser struct {
 }
 
 // NewChildrenTraverser create a new traverser to traverse the children (future cone)
-func NewChildrenTraverser(dbStorage *storage.Storage, metadataMemcache ...*storage.MetadataMemcache) *ChildrenTraverser {
+func NewChildrenTraverser(
+	cachedMetadataFunc storage.CachedMessageMetadataFunc,
+	childrenMessageIDsFunc storage.ChildrenMessageIDsFunc,
+	cleanupFunc storage.CleanupFunc) *ChildrenTraverser {
 
 	t := &ChildrenTraverser{
-		storage:          dbStorage,
-		metadataMemcache: storage.NewMetadataMemcache(dbStorage),
-		stack:            list.New(),
-		discovered:       make(map[string]struct{}),
-	}
-
-	if len(metadataMemcache) > 0 && metadataMemcache[0] != nil {
-		// use the memcache from outside to share the same cached metadata
-		t.metadataMemcache = metadataMemcache[0]
+		cachedMetadataFunc:     cachedMetadataFunc,
+		childrenMessageIDsFunc: childrenMessageIDsFunc,
+		cleanupFunc:            cleanupFunc,
+		stack:                  list.New(),
+		discovered:             make(map[string]struct{}),
 	}
 
 	return t
@@ -59,7 +59,9 @@ func (t *ChildrenTraverser) reset() {
 // Cleanup releases all the cached objects that have been traversed.
 // This MUST be called by the user at the end.
 func (t *ChildrenTraverser) Cleanup(forceRelease bool) {
-	t.metadataMemcache.Cleanup(forceRelease)
+	if t.cleanupFunc != nil {
+		t.cleanupFunc(forceRelease)
+	}
 }
 
 // Traverse starts to traverse the children (future cone) of the given start message until
@@ -111,11 +113,12 @@ func (t *ChildrenTraverser) processStackChildren() error {
 	// remove the message from the stack
 	t.stack.Remove(ele)
 
-	cachedMsgMeta := t.metadataMemcache.CachedMetadataOrNil(currentMessageID) // meta +1
+	cachedMsgMeta := t.cachedMetadataFunc(currentMessageID) // meta +1
 	if cachedMsgMeta == nil {
 		// there was an error, stop processing the stack
 		return errors.Wrapf(common.ErrMessageNotFound, "message ID: %s", currentMessageID.ToHex())
 	}
+	defer cachedMsgMeta.Release(true) // meta -1
 
 	// check condition to decide if msg should be consumed and traversed
 	traverse, err := t.condition(cachedMsgMeta.Retain()) // meta + 1
@@ -137,7 +140,7 @@ func (t *ChildrenTraverser) processStackChildren() error {
 		}
 	}
 
-	for _, childMessageID := range t.storage.ChildrenMessageIDs(currentMessageID, t.iteratorOptions...) {
+	for _, childMessageID := range t.childrenMessageIDsFunc(currentMessageID, t.iteratorOptions...) {
 		if !t.walkAlreadyDiscovered {
 			childMessageIDMapKey := childMessageID.ToMapKey()
 			if _, childDiscovered := t.discovered[childMessageIDMapKey]; childDiscovered {

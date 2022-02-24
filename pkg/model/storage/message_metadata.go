@@ -51,7 +51,7 @@ const (
 )
 
 type MessageMetadata struct {
-	objectstorage.StorableObjectFlags
+	*objectstorage.StorableObjectFlags
 	syncutils.RWMutex
 
 	messageID hornet.MessageID
@@ -78,6 +78,18 @@ type MessageMetadata struct {
 
 	// parents are the parents of the message
 	parents hornet.MessageIDs
+}
+
+func NewMessageMetadata(messageID hornet.MessageID, parents hornet.MessageIDs) *MessageMetadata {
+	return &MessageMetadata{
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		messageID:           messageID,
+		parents:             parents,
+	}
+}
+
+func (m *MessageMetadata) Flags() *objectstorage.StorableObjectFlags {
+	return m.StorableObjectFlags
 }
 
 func (m *MessageMetadata) MessageID() hornet.MessageID {
@@ -113,7 +125,7 @@ func (m *MessageMetadata) SetSolid(solid bool) {
 			m.solidificationTimestamp = 0
 		}
 		m.metadata = m.metadata.ModifyBit(MessageMetadataSolid, solid)
-		m.SetModified(true)
+		m.SetModified(true, false)
 	}
 }
 
@@ -149,7 +161,7 @@ func (m *MessageMetadata) SetReferenced(referenced bool, referencedIndex milesto
 			m.referencedIndex = 0
 		}
 		m.metadata = m.metadata.ModifyBit(MessageMetadataReferenced, referenced)
-		m.SetModified(true)
+		m.SetModified(true, false)
 	}
 }
 
@@ -166,7 +178,7 @@ func (m *MessageMetadata) SetIsNoTransaction(noTx bool) {
 
 	if noTx != m.metadata.HasBit(MessageMetadataNoTx) {
 		m.metadata = m.metadata.ModifyBit(MessageMetadataNoTx, noTx)
-		m.SetModified(true)
+		m.SetModified(true, false)
 	}
 }
 
@@ -187,7 +199,7 @@ func (m *MessageMetadata) SetConflictingTx(conflict Conflict) {
 		m.conflict != conflict {
 		m.metadata = m.metadata.ModifyBit(MessageMetadataConflictingTx, conflictingTx)
 		m.conflict = conflict
-		m.SetModified(true)
+		m.SetModified(true, false)
 	}
 }
 
@@ -211,7 +223,7 @@ func (m *MessageMetadata) SetMilestone(milestone bool) {
 
 	if milestone != m.metadata.HasBit(MessageMetadataMilestone) {
 		m.metadata = m.metadata.ModifyBit(MessageMetadataMilestone, milestone)
-		m.SetModified(true)
+		m.SetModified(true, false)
 	}
 }
 
@@ -222,7 +234,7 @@ func (m *MessageMetadata) SetConeRootIndexes(ycri milestone.Index, ocri mileston
 	m.youngestConeRootIndex = ycri
 	m.oldestConeRootIndex = ocri
 	m.coneRootCalculationIndex = ci
-	m.SetModified(true)
+	m.SetModified(true, false)
 }
 
 func (m *MessageMetadata) ConeRootIndexes() (ycri milestone.Index, ocri milestone.Index, ci milestone.Index) {
@@ -334,7 +346,8 @@ func MetadataFactory(key []byte, data []byte) (objectstorage.StorableObject, err
 	}
 
 	m := &MessageMetadata{
-		messageID: hornet.MessageIDFromSlice(key[:32]),
+		StorableObjectFlags: objectstorage.NewStorableObjectFlags(),
+		messageID:           hornet.MessageIDFromSlice(key[:32]),
 	}
 
 	m.metadata = bitmask.BitMask(metadataByte)
